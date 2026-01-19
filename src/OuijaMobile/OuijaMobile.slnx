@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="OuijaMobile.App/OuijaMobile.App.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+  <Project Path="OuijaMobile.Core/OuijaMobile.Core.csproj" />
+</Solution>
