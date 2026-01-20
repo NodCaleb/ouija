@@ -6,4 +6,5 @@ namespace OuijaDesk.Application.Contracts;
 
 public interface ITransport
 {
+
 }

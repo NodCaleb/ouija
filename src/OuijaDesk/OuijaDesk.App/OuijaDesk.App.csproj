@@ -62,6 +62,12 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <ProjectReference Include="..\OuijaDesk.Application\OuijaDesk.Application.csproj" />
+	  <ProjectReference Include="..\OuijaDesk.Infrastructure.Serial\OuijaDesk.Infrastructure.Serial.csproj" />
+	  <ProjectReference Include="..\OuijaDesk.Protocol\OuijaDesk.Protocol.csproj" />
+	</ItemGroup>
+
+	<ItemGroup>
 	  <MauiXaml Update="Pages\MainPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>

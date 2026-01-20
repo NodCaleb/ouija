@@ -1,9 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using OuijaDesk.Contracts.Models;
 
 namespace OuijaDesk.Application.Contracts;
 
 public interface IProtocolValidator
 {
+    void Validate(DeviceResponse response);
 }

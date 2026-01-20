@@ -1,8 +1,6 @@
-﻿using Microsoft.Extensions.DependencyInjection;
-
-namespace OuijaDesk.App
+﻿namespace OuijaDesk.App
 {
-    public partial class App : Application
+    public partial class App : Microsoft.Maui.Controls.Application
     {
         public App()
         {

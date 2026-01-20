@@ -4,6 +4,6 @@ using System.Text;
 
 namespace OuijaDesk.Application.DTO;
 
-internal class TransferResultDto
+public class TransferResultDto
 {
 }
