@@ -6,5 +6,5 @@ namespace OuijaDesk.Application.Contracts;
 
 public interface ITransport
 {
-
+    Task<byte[]> TransferAsync(string portName, byte[] data);
 }
