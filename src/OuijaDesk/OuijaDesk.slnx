@@ -1,0 +1,9 @@
+<Solution>
+  <Project Path="OuijaDesk.App/OuijaDesk.App.csproj">
+    <Deploy Solution="Debug|*" />
+  </Project>
+  <Project Path="OuijaDesk.Application/OuijaDesk.Application.csproj" />
+  <Project Path="OuijaDesk.Infrastructure.Serial/OuijaDesk.Infrastructure.Serial.csproj" Id="774469ce-32ad-4865-909f-90c18a25e207" />
+  <Project Path="OuijaDesk.Protocol/OuijaDesk.Protocol.csproj" />
+  <Project Path="OuijaDesk.Tests/OuijaDesk.Tests.csproj" />
+</Solution>
