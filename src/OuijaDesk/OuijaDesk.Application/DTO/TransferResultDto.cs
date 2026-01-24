@@ -1,9 +1,7 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-
-namespace OuijaDesk.Application.DTO;
+﻿namespace OuijaDesk.Application.DTO;
 
 public class TransferResultDto
 {
+    public bool Success { get; set; }
+    public string? Message { get; set; }
 }
