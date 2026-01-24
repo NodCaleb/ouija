@@ -2,4 +2,5 @@
 
 public class DeviceResponse
 {
+    public byte ResponseStatus { get; set; }
 }

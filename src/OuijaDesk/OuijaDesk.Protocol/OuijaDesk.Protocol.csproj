@@ -6,4 +6,8 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\OuijaDesk.Application\OuijaDesk.Application.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -1,5 +1,7 @@
-﻿namespace OuijaDesk.Protocol.Checksum;
+﻿
+namespace OuijaDesk.Protocol.Checksum;
 
-internal interface IChecksumCalculator
+public interface IChecksumCalculator
 {
+    byte CalculateXorChecksum(ReadOnlySpan<byte> data);
 }
