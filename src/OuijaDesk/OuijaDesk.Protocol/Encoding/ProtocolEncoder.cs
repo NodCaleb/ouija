@@ -61,7 +61,7 @@ public sealed class ProtocolEncoder : IProtocolEncoder
             Buffer.BlockCopy(payload, 0, buffer, 5, payload.Length);
         }
 
-        buffer[^1] = _checksumCalculator.CalculateXorChecksum(buffer.AsSpan(0, buffer.Length - 1));
+        buffer[^1] = _checksumCalculator.CalculateXorChecksum(buffer.AsSpan(2, buffer.Length - 3));
 
         return buffer;
     }    

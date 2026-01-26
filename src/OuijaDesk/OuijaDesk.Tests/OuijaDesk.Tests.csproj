@@ -18,4 +18,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\OuijaDesk.Protocol\OuijaDesk.Protocol.csproj" />
+    <ProjectReference Include="..\OuijaDesk.Application\OuijaDesk.Application.csproj" />
+  </ItemGroup>
+
 </Project>
