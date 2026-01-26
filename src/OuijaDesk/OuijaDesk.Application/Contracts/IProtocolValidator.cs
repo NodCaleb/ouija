@@ -4,5 +4,5 @@ namespace OuijaDesk.Application.Contracts;
 
 public interface IProtocolValidator
 {
-    void Validate(DeviceResponse response);
+    bool Validate(DeviceResponse response);
 }
