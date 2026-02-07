@@ -2,11 +2,64 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="OuijaDesk.App.Pages.MainPage"
-             Title="MainPage">
-    <VerticalStackLayout>
-        <Label 
-            Text="Welcome to .NET MAUI!"
-            VerticalOptions="Center" 
-            HorizontalOptions="Center" />
-    </VerticalStackLayout>
+             Title="OuijaDesk">
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="15">
+            
+            <!-- First Row: Port Controls -->
+            <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="10">
+                <Label Text="Порт:" 
+                       VerticalOptions="Center"
+                       Grid.Column="0" />
+                
+                <Picker Grid.Column="1"
+                        ItemsSource="{Binding Ports}"
+                        ItemDisplayBinding="{Binding PortName}"
+                        SelectedItem="{Binding SelectedPort}"
+                        VerticalOptions="Center" />
+                
+                <Button Grid.Column="2"
+                        Text="Сканировать порты"
+                        Command="{Binding ScanPortsCommand}" />
+                
+                <Button Grid.Column="3"
+                        Text="Проверить статус"
+                        Command="{Binding CheckStatusCommand}" />
+            </Grid>
+            
+            <!-- Second Row: Text Input -->
+            <Entry Placeholder="Введите текст для воспроизведения"
+                   Text="{Binding Text}" />
+            
+            <!-- Third Row: Command Buttons -->
+            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="10">
+                <Button Grid.Column="0"
+                        Text="Воспроизвести один раз"
+                        Command="{Binding SendCommandCommand}"
+                        CommandParameter="1" />
+                
+                <Button Grid.Column="1"
+                        Text="Воспроизвести повторно"
+                        Command="{Binding SendCommandCommand}"
+                        CommandParameter="2" />
+                
+                <Button Grid.Column="2"
+                        Text="Да"
+                        Command="{Binding SendCommandCommand}"
+                        CommandParameter="4" />
+                
+                <Button Grid.Column="3"
+                        Text="Нет"
+                        Command="{Binding SendCommandCommand}"
+                        CommandParameter="5" />
+            </Grid>
+            
+            <!-- Fourth Row: Status Message -->
+            <Label Text="{Binding StatusMessage}"
+                   FontAttributes="Bold"
+                   HorizontalOptions="Center"
+                   VerticalOptions="Center" />
+            
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>
