@@ -18,8 +18,9 @@ public class MainPageViewModel
 
 	public SerialPortInfo? SelectedPort { get; set; }
 	public string Text { get; set; } = string.Empty;
-	public DeviceStatusDto? LastTransferStatus { get; set; }
-	public TransferResultDto? LastDeviceStatus { get; set; }
+	public string StatusMessage { get; set; } = string.Empty;
+	public DeviceStatusDto? LastDeviceStatus { get; set; }
+	public TransferResultDto? LastTransferResult { get; set; }
 
     public MainPageViewModel(IDeviceClient deviceClient, ISerialPortService serialPortService)
     {
@@ -32,19 +33,44 @@ public class MainPageViewModel
 
 	private async Task ScanPortsAsync()
 	{
-		// TODO: implement port scanning logic
+		Ports.Clear();
+		var availablePorts = _serialPortService.GetAvailablePorts();
+		foreach (var port in availablePorts)
+		{
+			Ports.Add(port);
+		}
 		await Task.CompletedTask;
 	}
 
 	private async Task CheckStatusAsync()
 	{
-		// TODO: implement status check logic
-		await Task.CompletedTask;
-	}
+		LastDeviceStatus = await _deviceClient.CheckStatusAsync();
+		StatusMessage = LastDeviceStatus != null ? $"Устройство {(LastDeviceStatus.Online ? "подключено" : "отключено")}" : "Не удалось получить статус устройства";
+    }
 
 	private async Task SendCommandAsync(string command)
 	{
-		// TODO: implement send command logic
-		await Task.CompletedTask;
+		if (!byte.TryParse(command, out byte commandType))
+		{
+			StatusMessage = "Неверный формат команды";
+			return;
+		}
+
+		if ((commandType == Protocol.Constants.CommandType.PlayOnce || 
+		     commandType == Protocol.Constants.CommandType.PlayRepeat) && 
+		    string.IsNullOrWhiteSpace(Text))
+		{
+			StatusMessage = "Для команд воспроизведения необходимо указать текст";
+			return;
+		}
+
+		var deviceCommand = new DeviceCommand
+		{
+			CommandType = commandType,
+			Message = Text
+		};
+
+		LastTransferResult = await _deviceClient.SendAsync(deviceCommand);
+		StatusMessage = LastTransferResult.Success ? "Команда успешно отправлена" : $"Ошибка отправки команды: {LastTransferResult.Message}";
 	}
 }
