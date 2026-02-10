@@ -2,7 +2,7 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="OuijaDesk.App.Pages.MainPage"
-             Title="OuijaDesk">
+             Title="Ouija">
     <ScrollView>
         <VerticalStackLayout Padding="20" Spacing="15">
             
@@ -32,7 +32,7 @@
                    Text="{Binding Text}" />
             
             <!-- Third Row: Command Buttons -->
-            <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="10">
+            <Grid ColumnDefinitions="*,*,*,*,*" ColumnSpacing="10">
                 <Button Grid.Column="0"
                         Text="Воспроизвести один раз"
                         Command="{Binding SendCommandCommand}"
@@ -44,11 +44,16 @@
                         CommandParameter="2" />
                 
                 <Button Grid.Column="2"
+                        Text="Стоп"
+                        Command="{Binding SendCommandCommand}"
+                        CommandParameter="3" />
+                
+                <Button Grid.Column="3"
                         Text="Да"
                         Command="{Binding SendCommandCommand}"
                         CommandParameter="4" />
                 
-                <Button Grid.Column="3"
+                <Button Grid.Column="4"
                         Text="Нет"
                         Command="{Binding SendCommandCommand}"
                         CommandParameter="5" />
