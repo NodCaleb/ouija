@@ -37,7 +37,7 @@ static const uint8_t RESPONSE_GENERIC = 0x01;
 
 // ---------------- Shift Register configuration ----------------
 
-// Pin definitions for 74HC595 shift registers (4 daisy-chained)
+// Pin definitions for 74HC595 shift registers (6 daisy-chained -> 48 bits)
 static const uint8_t SHIFT_DATA_PIN  = 2;  // SER/DS pin
 static const uint8_t SHIFT_CLOCK_PIN = 3;  // SRCLK/SHCP pin
 static const uint8_t SHIFT_LATCH_PIN = 4;  // RCLK/STCP pin
@@ -68,34 +68,34 @@ volatile bool oneSecondElapsed = false;
 
 // ---------------- Utility functions ----------------
 
-// Maps a byte value (0-31) to a 4-byte bit mask.
-// For input 0-31: sets the corresponding bit position to 1, all others to 0.
+// Maps a value (0-47) to a 48-bit mask (uint64_t).
+// For input 0-47: sets the corresponding bit position to 1, all others to 0.
 // For any other input: returns 0 (all bits zero).
-static uint32_t mapValueToBitMask(uint8_t value)
+static uint64_t mapValueToBitMask(uint8_t value)
 {
-  if (value <= 31) {
-    return (1UL << value);
+  if (value <= 47) {
+    return (1ULL << value);
   }
-  return 0;
+  return 0ULL;
 }
 
-// Sends a 32-bit value to 4 daisy-chained shift registers (74HC595).
+// Sends a 48-bit value to 6 daisy-chained shift registers (74HC595).
 // Bits are shifted out MSB first, starting with the most distant register.
-static void sendToShiftRegisters(uint32_t value)
+static void sendToShiftRegisters(uint64_t value)
 {
   // Pull latch low to prepare for data
   digitalWrite(SHIFT_LATCH_PIN, LOW);
-  
-  // Shift out all 32 bits, MSB first
-  for (int8_t i = 31; i >= 0; i--) {
+
+  // Shift out all 48 bits, MSB first
+  for (int16_t i = 47; i >= 0; i--) {
     // Set data pin to the bit value
-    digitalWrite(SHIFT_DATA_PIN, (value >> i) & 1);
-    
+    digitalWrite(SHIFT_DATA_PIN, (int)((value >> i) & 1ULL));
+
     // Pulse clock to shift the bit
     digitalWrite(SHIFT_CLOCK_PIN, HIGH);
     digitalWrite(SHIFT_CLOCK_PIN, LOW);
   }
-  
+
   // Pulse latch to transfer data to output pins
   digitalWrite(SHIFT_LATCH_PIN, HIGH);
 }
@@ -310,7 +310,7 @@ void setup()
   digitalWrite(SHIFT_LATCH_PIN, LOW);
   digitalWrite(SHIFT_CLOCK_PIN, LOW);
   digitalWrite(SHIFT_DATA_PIN, LOW);
-  sendToShiftRegisters(0);
+  sendToShiftRegisters(0ULL);
 
   initTimer1ForOneSecondInterrupt();
   initUart();
@@ -326,7 +326,7 @@ void loop()
     // Process sequence playback if active
     if (sequenceIndex > -1) {
       // Send current sequence byte to shift registers
-      uint32_t bitMask = mapValueToBitMask(sequencePayload[sequenceIndex]);
+      uint64_t bitMask = mapValueToBitMask(sequencePayload[sequenceIndex]);
       sendToShiftRegisters(bitMask);
       
       // Move to next position
