@@ -30,10 +30,15 @@ static const uint8_t CMD_DISPLAY_YES          = 0x04;
 static const uint8_t CMD_DISPLAY_NO           = 0x05;
 
 // Response bytes:
-// - 0x00 for CHECK_STATUS
+// - 0x00 for success
 // - 0x01 for any other valid command
-static const uint8_t RESPONSE_OK      = 0x00;
-static const uint8_t RESPONSE_GENERIC = 0x01;
+// Response codes:
+// 0x00 = success
+// 0x01 = invalid checksum
+// 0x02 = unknown command
+static const uint8_t RESPONSE_OK                   = 0x00;
+static const uint8_t RESPONSE_INVALID_CHECKSUM    = 0x01;
+static const uint8_t RESPONSE_UNKNOWN_COMMAND     = 0x02;
 
 // ---------------- Shift Register configuration ----------------
 
@@ -152,7 +157,8 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
 
   uint8_t receivedChecksum = frame[lastPayloadIndex + 1];
   if (checksum != receivedChecksum) {
-    // Invalid checksum – discard
+    // Invalid checksum – reply with error code and discard
+    uartSendByte(RESPONSE_INVALID_CHECKSUM);
     return;
   }
 
@@ -171,8 +177,27 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
     // Start playback from beginning
     sequenceIndex = 0;
     uartSendByte(RESPONSE_OK);
+  } else if (command == CMD_STOP_PLAYING) {
+    // Stop any active sequence playback
+    sequenceIndex = -1;
+    uartSendByte(RESPONSE_OK);
+  } else if (command == CMD_DISPLAY_YES) {
+    // Display YES: single-byte sequence with value 0x00
+    sequencePayloadLength = 1;
+    sequencePayload[0] = 0x00;
+    repeatPlay = 0;
+    sequenceIndex = 0;
+    uartSendByte(RESPONSE_OK);
+  } else if (command == CMD_DISPLAY_NO) {
+    // Display NO: single-byte sequence with value 0x01
+    sequencePayloadLength = 1;
+    sequencePayload[0] = 0x01;
+    repeatPlay = 0;
+    sequenceIndex = 0;
+    uartSendByte(RESPONSE_OK);
   } else {
-    uartSendByte(RESPONSE_GENERIC);
+    // Unknown/unsupported command
+    uartSendByte(RESPONSE_UNKNOWN_COMMAND);
   }
 }
 
