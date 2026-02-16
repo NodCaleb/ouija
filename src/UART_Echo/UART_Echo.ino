@@ -10,6 +10,14 @@ volatile uint8_t rxBuf[RX_BUF_SIZE];
 volatile uint8_t rxHead = 0;
 volatile uint8_t rxTail = 0;
 
+// Application buffer: store received bytes until flush trigger
+#define APP_BUF_SIZE RX_BUF_SIZE
+static uint8_t appBuf[APP_BUF_SIZE];
+static uint8_t appLen = 0;
+static bool appTerminated = false; // set when newline/CR received
+static unsigned long lastRxMillis = 0;
+static const unsigned long RX_IDLE_TIMEOUT_MS = 50; // flush after 50ms idle
+
 void uart_init(uint32_t baud) {
   uint16_t ubrr = (F_CPU / 4 / baud - 1) / 2; // Using double speed (U2X0)
   UBRR0H = (ubrr >> 8) & 0xFF;
@@ -52,9 +60,40 @@ void setup() {
 
 void loop() {
   // Fast, non-blocking handling — called in main context
+  // Drain ISR ring buffer into application buffer
   while (rx_available()) {
     uint8_t b = rx_read();
-    uart_putchar(b); // echo back immediately (in main context)
+    lastRxMillis = millis();
+
+    // Treat CR or LF as terminator (do not include in stored bytes)
+    if (b == '\r' || b == '\n') {
+      appTerminated = true;
+    } else {
+      if (appLen < APP_BUF_SIZE) {
+        appBuf[appLen++] = b;
+      } else {
+        // buffer full: set terminator so we flush immediately
+        appTerminated = true;
+      }
+    }
+  }
+
+  // Flush conditions: explicit terminator, buffer full, or idle timeout
+  if (appLen > 0 && (appTerminated || (millis() - lastRxMillis >= RX_IDLE_TIMEOUT_MS))) {
+    // Send stored bytes in reverse order
+    int n = (int)appLen;
+    for (int i = n - 1; i >= 0; --i) {
+      uart_putchar(appBuf[i]);
+    }
+
+    // If input ended with newline/CR, send a newline after reversed data
+    if (appTerminated) {
+      uart_putchar('\n');
+    }
+
+    // Reset buffer state
+    appLen = 0;
+    appTerminated = false;
   }
   // Do other work here; no Serial dependency
 }
