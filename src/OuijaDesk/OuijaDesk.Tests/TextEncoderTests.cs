@@ -181,7 +181,8 @@ public class TextEncoderTests
         var bytes = Array.Empty<byte>();
 
         // Act
-        var result = TextEncoder.Decode(bytes);
+        var encoder = new TextEncoder();
+        var result = encoder.Decode(bytes);
 
         // Assert
         Assert.Equal(string.Empty, result);
