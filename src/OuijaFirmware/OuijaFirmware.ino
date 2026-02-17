@@ -228,6 +228,11 @@ ISR(USART_RX_vect) {
   // else drop if buffer full
 }
 
+// Timer1 Compare Match A interrupt: fires at 1 Hz when Timer1 configured by initTimer1ForOneSecondInterrupt()
+ISR(TIMER1_COMPA_vect)
+{
+  oneSecondElapsed = true;
+}
 bool rx_available() {
   return rxHead != rxTail;
 }
