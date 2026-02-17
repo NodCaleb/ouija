@@ -13,6 +13,8 @@
 //   [5..] = Payload (L bytes)
 //   [last]= Checksum = XOR(bytes 2..(4+L))
 
+#include <avr/io.h>
+#include <avr/interrupt.h>
 #include <Arduino.h>
 
 // ---------------- Protocol constants ----------------
@@ -29,16 +31,17 @@ static const uint8_t CMD_STOP_PLAYING         = 0x03;
 static const uint8_t CMD_DISPLAY_YES          = 0x04;
 static const uint8_t CMD_DISPLAY_NO           = 0x05;
 
-// Response bytes:
-// - 0x00 for success
-// - 0x01 for any other valid command
 // Response codes:
 // 0x00 = success
-// 0x01 = invalid checksum
-// 0x02 = unknown command
-static const uint8_t RESPONSE_OK                   = 0x00;
-static const uint8_t RESPONSE_INVALID_CHECKSUM    = 0x01;
-static const uint8_t RESPONSE_UNKNOWN_COMMAND     = 0x02;
+// 0x01 = invalid message
+// 0x02 = invalid checksum
+// 0x03 = unknown command
+// 0x04 = invalid version 
+static const uint8_t RESPONSE_OK                  = 0x00;
+static const uint8_t RESPONSE_INVALID_MESSAGE     = 0x01;
+static const uint8_t RESPONSE_INVALID_CHECKSUM    = 0x02;
+static const uint8_t RESPONSE_UNKNOWN_COMMAND     = 0x03;
+static const uint8_t RESPONSE_INVALID_VERSION     = 0x04;
 
 // ---------------- Shift Register configuration ----------------
 
@@ -49,20 +52,18 @@ static const uint8_t SHIFT_LATCH_PIN = 4;  // RCLK/STCP pin
 
 // ---------------- UART configuration ----------------
 
-// Adjust if you need a different baud rate
-static const uint32_t UART_BAUD_RATE = 115200UL;
+#define RX_BUF_SIZE 128
+volatile uint8_t rxBuf[RX_BUF_SIZE];
+volatile uint8_t rxHead = 0;
+volatile uint8_t rxTail = 0;
 
-// Receive buffer size (enough for small frames)
-static const uint8_t RX_BUFFER_SIZE = 64;
+// Application buffer: store received bytes until flush trigger
+#define APP_BUF_SIZE RX_BUF_SIZE
+static uint8_t appBuf[APP_BUF_SIZE];
+static uint8_t appLen = 0;
+static unsigned long lastRxMillis = 0;
+static const unsigned long RX_IDLE_TIMEOUT_MS = 50; // flush after 50ms idle
 
-volatile uint8_t  rxBuffer[RX_BUFFER_SIZE];
-volatile uint8_t  rxIndex          = 0;
-volatile uint8_t  rxExpectedLength = 0; // Total frame length once known (0 = unknown)
-
-// ISR-driven receive ring buffer (ISR only writes head; main loop reads tail)
-volatile uint8_t rxRing[RX_BUFFER_SIZE];
-volatile uint8_t rxRingHead = 0;
-volatile uint8_t rxRingTail = 0;
 
 // ---------------- Sequence storage ----------------
 
@@ -110,18 +111,9 @@ static void sendToShiftRegisters(uint64_t value)
   digitalWrite(SHIFT_LATCH_PIN, HIGH);
 }
 
-static inline void uartSendByte(uint8_t b)
-{
-  // Wait until transmit buffer is empty
-#if defined(UDR0)
-  while (!(UCSR0A & (1 << UDRE0))) {
-    // wait
-  }
-  UDR0 = b;
-#else
-  // Fallback to Arduino Serial if direct UART registers are not available
-  Serial.write(b);
-#endif
+void uart_putchar(uint8_t c) {
+  while (!(UCSR0A & (1 << UDRE0)));
+  UDR0 = c;
 }
 
 static void processValidFrame(const uint8_t *frame, uint8_t length)
@@ -136,7 +128,14 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
   // [5+L] = checksum
 
   if (length < 6) {
+    uart_putchar(RESPONSE_INVALID_MESSAGE); 
     return; // too short to be valid
+  }
+
+  // Validate magic bytes
+  if (frame[0] != PROTOCOL_MAGIC_0 || frame[1] != PROTOCOL_MAGIC_1) {
+    uart_putchar(RESPONSE_INVALID_MESSAGE); 
+    return; // invalid magic, discard
   }
 
   uint8_t version      = frame[2];
@@ -145,11 +144,13 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
   uint8_t expectedSize = (uint8_t)(6 + payloadLen); // 2 magic + 1 ver + 1 cmd + 1 len + L + 1 checksum
 
   if (length != expectedSize) {
+    uart_putchar(RESPONSE_INVALID_MESSAGE);
     return; // length mismatch, discard
   }
 
   // Validate version
   if (version != PROTOCOL_VERSION) {
+    uart_putchar(RESPONSE_INVALID_VERSION);
     return;
   }
 
@@ -163,14 +164,14 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
   uint8_t receivedChecksum = frame[lastPayloadIndex + 1];
   if (checksum != receivedChecksum) {
     // Invalid checksum – reply with error code and discard
-    uartSendByte(RESPONSE_INVALID_CHECKSUM);
+    uart_putchar(RESPONSE_INVALID_CHECKSUM);
     return;
   }
 
   // At this point, the frame is valid.
   // Respond according to the command type:
   if (command == CMD_CHECK_STATUS) {
-    uartSendByte(RESPONSE_OK);
+    uart_putchar(RESPONSE_OK);
   } else if (command == CMD_PLAY_SEQUENCE_ONCE || command == CMD_PLAY_SEQUENCE_REPEAT) {
     // Store payload for sequence playback
     sequencePayloadLength = (payloadLen <= SEQUENCE_BUFFER_SIZE) ? payloadLen : SEQUENCE_BUFFER_SIZE;
@@ -181,58 +182,61 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
     repeatPlay = (command == CMD_PLAY_SEQUENCE_REPEAT) ? 1 : 0;
     // Start playback from beginning
     sequenceIndex = 0;
-    uartSendByte(RESPONSE_OK);
+    uart_putchar(RESPONSE_OK);
   } else if (command == CMD_STOP_PLAYING) {
     // Stop any active sequence playback
     sequenceIndex = -1;
-    uartSendByte(RESPONSE_OK);
+    uart_putchar(RESPONSE_OK);
   } else if (command == CMD_DISPLAY_YES) {
     // Display YES: single-byte sequence with value 0x00
     sequencePayloadLength = 1;
     sequencePayload[0] = 0x00;
     repeatPlay = 0;
     sequenceIndex = 0;
-    uartSendByte(RESPONSE_OK);
+    uart_putchar(RESPONSE_OK);
   } else if (command == CMD_DISPLAY_NO) {
     // Display NO: single-byte sequence with value 0x01
     sequencePayloadLength = 1;
     sequencePayload[0] = 0x01;
     repeatPlay = 0;
     sequenceIndex = 0;
-    uartSendByte(RESPONSE_OK);
+    uart_putchar(RESPONSE_OK);
   } else {
     // Unknown/unsupported command
-    uartSendByte(RESPONSE_UNKNOWN_COMMAND);
+    uart_putchar(RESPONSE_UNKNOWN_COMMAND);
   }
-}
-
-// ---------------- Interrupt Service Routines ----------------
-
-#if defined(UDR0)
-// Minimal ISR: push received byte into ring buffer, keep ISR tiny.
-ISR(USART_RX_vect)
-{
-  uint8_t byteReceived = UDR0;
-
-  uint8_t next = (uint8_t)(rxRingHead + 1);
-  if (next >= RX_BUFFER_SIZE) next = 0;
-
-  // If buffer not full, store byte
-  if (next != rxRingTail) {
-    rxRing[rxRingHead] = byteReceived;
-    rxRingHead = next;
-  }
-  // else drop byte on overflow
-}
-#endif
-
-// Timer1 compare interrupt – fires every 1 second
-ISR(TIMER1_COMPA_vect)
-{
-  oneSecondElapsed = true;
 }
 
 // ---------------- Initialization helpers ----------------
+
+void uart_init(uint32_t baud) {
+  uint16_t ubrr = (F_CPU / 4 / baud - 1) / 2; // Using double speed (U2X0)
+  UBRR0H = (ubrr >> 8) & 0xFF;
+  UBRR0L = ubrr & 0xFF;
+  UCSR0A = (1 << U2X0);            // double speed
+  UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0); // RX/TX enable + RX interrupt
+  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00); // 8N1
+}
+
+ISR(USART_RX_vect) {
+  uint8_t b = UDR0; // read received byte
+  uint8_t next = (rxHead + 1) & (RX_BUF_SIZE - 1); // RX_BUF_SIZE must be power of two
+  if (next != rxTail) {
+    rxBuf[rxHead] = b;
+    rxHead = next;
+  }
+  // else drop if buffer full
+}
+
+bool rx_available() {
+  return rxHead != rxTail;
+}
+
+uint8_t rx_read() {
+  uint8_t b = rxBuf[rxTail];
+  rxTail = (rxTail + 1) & (RX_BUF_SIZE - 1);
+  return b;
+}
 
 static void initTimer1ForOneSecondInterrupt()
 {
@@ -262,27 +266,6 @@ static void initTimer1ForOneSecondInterrupt()
   interrupts();
 }
 
-static void initUart()
-{
-#if defined(UBRR0H)
-  // Configure UART0 manually (typical on AVR-based Arduinos like Uno)
-  uint16_t ubrr = (uint16_t)((F_CPU / (16UL * UART_BAUD_RATE)) - 1UL);
-
-  // Set baud rate
-  UBRR0H = (uint8_t)(ubrr >> 8);
-  UBRR0L = (uint8_t)(ubrr & 0xFF);
-
-  // Enable receiver, transmitter and RX complete interrupt
-  UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
-
-  // 8 data bits, no parity, 1 stop bit
-  UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
-#else
-  // Fallback for boards without direct register access: use Serial and polling.
-  Serial.begin(UART_BAUD_RATE);
-#endif
-}
-
 // ---------------- Arduino entry points ----------------
 
 void setup()
@@ -302,11 +285,37 @@ void setup()
   sendToShiftRegisters(0ULL);
 
   initTimer1ForOneSecondInterrupt();
-  initUart();
+
+  cli();
+  uart_init(115200);
+  sei();
 }
 
 void loop()
 {
+  // Fast, non-blocking handling — called in main context
+  // Drain ISR ring buffer into application buffer
+  while (rx_available()) {
+    uint8_t b = rx_read();
+    lastRxMillis = millis();
+
+    // Store all bytes equally (no special treatment for CR/LF)
+    if (appLen < APP_BUF_SIZE) {
+      appBuf[appLen++] = b;
+    } else {
+      // buffer full: drop new bytes until flush (will flush below)
+    }
+  }
+
+  // Flush conditions: buffer full or idle timeout
+  if (appLen > 0 && (appLen >= APP_BUF_SIZE || (millis() - lastRxMillis >= RX_IDLE_TIMEOUT_MS))) {
+    // Process frame
+    processValidFrame(appBuf, appLen);
+
+    // Reset buffer state
+    appLen = 0;
+  }
+
   // Handle 1-second timer: toggle LED
   if (oneSecondElapsed) {
     oneSecondElapsed = false;
@@ -329,65 +338,6 @@ void loop()
           sequenceIndex = -1; // Stop playback
         }
       }
-    }
-  }
-
-  // Drain the ISR ring buffer and assemble frames in main context.
-  while (rxRingTail != rxRingHead) {
-    uint8_t b = rxRing[rxRingTail];
-    rxRingTail = (uint8_t)(rxRingTail + 1);
-    if (rxRingTail >= RX_BUFFER_SIZE) rxRingTail = 0;
-
-    // State machine for frame assembly (previously executed in ISR)
-    if (rxIndex == 0) {
-      if (b != PROTOCOL_MAGIC_0) {
-        continue; // wait for first magic byte
-      }
-      rxBuffer[rxIndex++] = b;
-      rxExpectedLength = 0;
-      continue;
-    }
-
-    if (rxIndex == 1) {
-      if (b != PROTOCOL_MAGIC_1) {
-        // if this byte is a first magic byte, start over from there
-        rxIndex = 0;
-        if (b == PROTOCOL_MAGIC_0) {
-          rxBuffer[rxIndex++] = b;
-        }
-        continue;
-      }
-      rxBuffer[rxIndex++] = b;
-      continue;
-    }
-
-    if (rxIndex < RX_BUFFER_SIZE) {
-      rxBuffer[rxIndex++] = b;
-    } else {
-      // overflow, reset
-      rxIndex = 0;
-      rxExpectedLength = 0;
-      continue;
-    }
-
-    if (rxIndex == 5) {
-      uint8_t payloadLen = rxBuffer[4];
-      rxExpectedLength = (uint8_t)(6 + payloadLen);
-    }
-
-    if (rxExpectedLength != 0 && rxIndex >= rxExpectedLength) {
-      // We have a full frame — process it
-      uint8_t len = rxExpectedLength;
-      uint8_t localFrame[RX_BUFFER_SIZE];
-      for (uint8_t i = 0; i < len && i < RX_BUFFER_SIZE; ++i) {
-        localFrame[i] = rxBuffer[i];
-      }
-      // reset state
-      rxIndex = 0;
-      rxExpectedLength = 0;
-
-      // handle frame in main context
-      processValidFrame(localFrame, len);
     }
   }
 }
