@@ -41,19 +41,19 @@ public class DeviceClient : IDeviceClient
             // may throw an ArgumentException which we treat as device offline/unavailable.
             responseBytes = await _transport.TransferAsync(string.Empty, payload).ConfigureAwait(false);
         }
-        catch
+        catch (Exception e)
         {
-            return new DeviceStatusDto { Online = false };
+            return new DeviceStatusDto { Online = false, Success = false, Message = $"Ошибка установки соединения: {e.Message}" };
         }
 
         if (responseBytes == null || responseBytes.Length == 0)
-            return new DeviceStatusDto { Online = false };
+            return new DeviceStatusDto { Online = false, Success = false, Message = "Нет ответа от устройства." };
 
         var response = _decoder.Decode(responseBytes);
 
         var isValid = _validator.Validate(response);
 
-        return new DeviceStatusDto { Online = isValid };
+        return new DeviceStatusDto { Online = isValid, Success = true };
     }
 
     public async Task<TransferResultDto> SendAsync(DeviceCommand command)
@@ -68,7 +68,7 @@ public class DeviceClient : IDeviceClient
         }
         catch (Exception ex)
         {
-            return new TransferResultDto { Success = false, Message = $"Encoding failed: {ex.Message}" };
+            return new TransferResultDto { Success = false, Message = $"Ошибка кодирования: {ex.Message}" };
         }
 
         byte[] responseBytes;
@@ -78,11 +78,11 @@ public class DeviceClient : IDeviceClient
         }
         catch (Exception ex)
         {
-            return new TransferResultDto { Success = false, Message = $"Transport error: {ex.Message}" };
+            return new TransferResultDto { Success = false, Message = $"Ошибка транспортного уровня: {ex.Message}" };
         }
 
         if (responseBytes == null || responseBytes.Length == 0)
-            return new TransferResultDto { Success = false, Message = "No response from device." };
+            return new TransferResultDto { Success = false, Message = "Нет ответа от устройства." };
 
         DeviceResponse response;
         try
@@ -91,7 +91,7 @@ public class DeviceClient : IDeviceClient
         }
         catch (Exception ex)
         {
-            return new TransferResultDto { Success = false, Message = $"Decode failed: {ex.Message}" };
+            return new TransferResultDto { Success = false, Message = $"Ошибка декодирования: {ex.Message}" };
         }
 
         var isValid = _validator.Validate(response);
@@ -99,6 +99,6 @@ public class DeviceClient : IDeviceClient
         if (isValid)
             return new TransferResultDto { Success = true };
 
-        return new TransferResultDto { Success = false, Message = $"Invalid response status: {response.ResponseStatus}." };
+        return new TransferResultDto { Success = false, Message = $"Неверный статус ответа: {response.ResponseStatus}." };
     }
 }

@@ -59,11 +59,22 @@
                         CommandParameter="5" />
             </Grid>
             
-            <!-- Fourth Row: Status Message -->
-            <Label Text="{Binding StatusMessage}"
-                   FontAttributes="Bold"
-                   HorizontalOptions="Center"
-                   VerticalOptions="Center" />
+            <!-- Fourth Row: Status Messages (newest on top) -->
+            <ScrollView Orientation="Vertical"
+                        VerticalOptions="Center"
+                        HeightRequest="200">
+                <VerticalStackLayout BindableLayout.ItemsSource="{Binding StatusMessages}"
+                                     Spacing="8"
+                                     Padding="0">
+                    <BindableLayout.ItemTemplate>
+                        <DataTemplate>
+                            <Label Text="{Binding .}"
+                                   FontAttributes="Bold"
+                                   HorizontalOptions="Center" />
+                        </DataTemplate>
+                    </BindableLayout.ItemTemplate>
+                </VerticalStackLayout>
+            </ScrollView>
             
         </VerticalStackLayout>
     </ScrollView>

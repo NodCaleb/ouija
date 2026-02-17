@@ -5,6 +5,7 @@ using System.Windows.Input;
 using OuijaDesk.Application.Contracts;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Microsoft.Maui.ApplicationModel;
 
 namespace OuijaDesk.App.ViewModels;
 
@@ -14,7 +15,9 @@ public class MainPageViewModel : INotifyPropertyChanged
     private readonly ISerialPortService _serialPortService;
 	private SerialPortInfo? _selectedPort;
 	private string _text = string.Empty;
-	private string _statusMessage = string.Empty;
+	// Status messages collection (newest messages will be inserted at index 0)
+	// and displayed in the UI with the newest on top.
+	public ObservableCollection<string> StatusMessages { get; } = new();
 	private DeviceStatusDto? _lastDeviceStatus;
 	private TransferResultDto? _lastTransferResult;
 
@@ -44,10 +47,11 @@ public class MainPageViewModel : INotifyPropertyChanged
 		set => SetProperty(ref _text, value);
 	}
 
-	public string StatusMessage
+	// Adds a new status message to the collection (newest first).
+	private void AddStatusMessage(string message)
 	{
-		get => _statusMessage;
-		set => SetProperty(ref _statusMessage, value);
+		// Ensure collection changes happen on the main thread for UI binding
+		MainThread.BeginInvokeOnMainThread(() => StatusMessages.Insert(0, message));
 	}
 
 	public DeviceStatusDto? LastDeviceStatus
@@ -79,20 +83,55 @@ public class MainPageViewModel : INotifyPropertyChanged
 		{
 			Ports.Add(port);
 		}
+
+		// Add a status message in Russian about the scan result
+		var count = Ports.Count;
+		if (count == 0)
+		{
+			AddStatusMessage("Порты не найдены");
+		}
+		else if (count == 1)
+		{
+			AddStatusMessage($"Найден 1 порт");
+		}
+		else if (count >= 2 && count <= 4)
+		{
+			AddStatusMessage($"Найдено {count} порта");
+		}
+		else
+		{
+			AddStatusMessage($"Найдено {count} портов");
+		}
+
 		await Task.CompletedTask;
 	}
 
 	private async Task CheckStatusAsync()
 	{
 		LastDeviceStatus = await _deviceClient.CheckStatusAsync();
-		StatusMessage = LastDeviceStatus != null ? $"Устройство {(LastDeviceStatus.Online ? "подключено" : "не подключено")}" : "Не удалось получить статус устройства";
+		var msg = LastDeviceStatus != null ? LastDeviceStatus!.Message : "Не удалось получить статус устройства";
+		AddStatusMessage(msg);
     }
 
 	private async Task SendCommandAsync(string command)
 	{
 		if (!byte.TryParse(command, out byte commandType))
 		{
-			StatusMessage = "Неверный формат команды";
+			AddStatusMessage("Неверный формат команды");
+			return;
+		}
+
+		// Do not send commands if device is not online
+		if (LastDeviceStatus == null || !LastDeviceStatus.Online)
+		{
+			if (LastDeviceStatus == null)
+			{
+				AddStatusMessage("Не удалось получить статус устройства. Команда не отправлена");
+			}
+			else
+			{
+				AddStatusMessage("Устройство не подключено. Команда не отправлена");
+			}
 			return;
 		}
 
@@ -100,7 +139,7 @@ public class MainPageViewModel : INotifyPropertyChanged
 		     commandType == Protocol.Constants.CommandType.PlayRepeat) && 
 		    string.IsNullOrWhiteSpace(Text))
 		{
-			StatusMessage = "Для команд воспроизведения необходимо указать текст";
+			AddStatusMessage("Для команд воспроизведения необходимо указать текст");
 			return;
 		}
 
@@ -111,7 +150,7 @@ public class MainPageViewModel : INotifyPropertyChanged
 		};
 
 		LastTransferResult = await _deviceClient.SendAsync(deviceCommand);
-		StatusMessage = LastTransferResult.Success ? "Команда успешно отправлена" : $"Ошибка отправки команды: {LastTransferResult.Message}";
+		AddStatusMessage(LastTransferResult.Success ? "Команда успешно отправлена" : $"Ошибка отправки команды: {LastTransferResult.Message}");
 	}
 
 	protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

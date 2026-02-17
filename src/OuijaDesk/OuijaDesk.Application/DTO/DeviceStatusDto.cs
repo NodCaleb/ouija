@@ -1,6 +1,6 @@
 ﻿namespace OuijaDesk.Application.DTO;
 
-public class DeviceStatusDto
+public class DeviceStatusDto : TransferResultDto
 {
     public bool Online { get; set; }
 }
