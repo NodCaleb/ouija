@@ -1,3 +1,5 @@
+using OuijaDesk.Application.Contracts;
+
 namespace OuijaDesk.Protocol.Encoding;
 
 /// <summary>
@@ -5,7 +7,7 @@ namespace OuijaDesk.Protocol.Encoding;
 /// - Digits 0-9 map to bytes 0x00-0x09
 /// - Cyrillic letters А-Я map to bytes 0x0A onwards (33 letters total, including Ё)
 /// </summary>
-public static class TextEncoder
+public class TextEncoder : ITextEncoder
 {
     private const string CyrillicAlphabet = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
 
@@ -15,7 +17,7 @@ public static class TextEncoder
     /// <param name="text">Input text (should contain only 0-9 and А-Я)</param>
     /// <returns>Encoded byte array</returns>
     /// <exception cref="ArgumentException">Thrown when text contains unsupported characters</exception>
-    public static byte[] Encode(string? text)
+    public byte[] Encode(string? text)
     {
         if (string.IsNullOrEmpty(text))
             return Array.Empty<byte>();
@@ -52,7 +54,7 @@ public static class TextEncoder
     /// <param name="bytes">Encoded byte array</param>
     /// <returns>Decoded string</returns>
     /// <exception cref="ArgumentException">Thrown when byte value is out of valid range</exception>
-    public static string Decode(byte[]? bytes)
+    public string Decode(byte[]? bytes)
     {
         if (bytes == null || bytes.Length == 0)
             return string.Empty;

@@ -1,12 +1,10 @@
-﻿ using OuijaDesk.Contracts.Models;
+﻿using OuijaDesk.Contracts.Models;
 using OuijaDesk.Application.DTO;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using OuijaDesk.Application.Contracts;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using Microsoft.Maui.ApplicationModel;
-using OuijaDesk.Protocol.Encoding;
 
 namespace OuijaDesk.App.ViewModels;
 
@@ -14,6 +12,7 @@ public class MainPageViewModel : INotifyPropertyChanged
 {
     private readonly IDeviceClient _deviceClient;
     private readonly ISerialPortService _serialPortService;
+    private readonly ITextEncoder _textEncoder;
 	private SerialPortInfo? _selectedPort;
 	private string _text = string.Empty;
 	// Status messages collection (newest messages will be inserted at index 0)
@@ -97,14 +96,15 @@ public class MainPageViewModel : INotifyPropertyChanged
 		set => SetProperty(ref _lastTransferResult, value);
 	}
 
-    public MainPageViewModel(IDeviceClient deviceClient, ISerialPortService serialPortService)
+    public MainPageViewModel(IDeviceClient deviceClient, ISerialPortService serialPortService, ITextEncoder textEncoder)
     {
         _deviceClient = deviceClient;
         _serialPortService = serialPortService;
-		ScanPortsCommand = new Command(async () => await ScanPortsAsync());
-		CheckStatusCommand = new Command(async () => await CheckStatusAsync());
-		SendCommandCommand = new Command<string>(async (cmd) => await SendCommandAsync(cmd));
-	}
+        _textEncoder = textEncoder ?? throw new ArgumentNullException(nameof(textEncoder));
+        ScanPortsCommand = new Command(async () => await ScanPortsAsync());
+        CheckStatusCommand = new Command(async () => await CheckStatusAsync());
+        SendCommandCommand = new Command<string>(async (cmd) => await SendCommandAsync(cmd));
+    }
 
 	private async Task ScanPortsAsync()
 	{
@@ -184,10 +184,10 @@ public class MainPageViewModel : INotifyPropertyChanged
 		byte[]? messageBytes = null;
 		if (!string.IsNullOrWhiteSpace(Text))
 		{
-			try
-			{
-				messageBytes = TextEncoder.Encode(Text);
-			}
+                try
+                {
+                    messageBytes = _textEncoder.Encode(Text);
+                }
 			catch (ArgumentException ex)
 			{
 				AddStatusMessage($"Ошибка кодирования текста: {ex.Message}");

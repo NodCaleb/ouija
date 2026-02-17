@@ -32,6 +32,7 @@ namespace OuijaDesk.App
             // Register Protocol Services
             builder.Services.AddSingleton<IChecksumCalculator, XorChecksum>();
             builder.Services.AddSingleton<IProtocolEncoder, ProtocolEncoder>();
+            builder.Services.AddSingleton<ITextEncoder, TextEncoder>();
             builder.Services.AddSingleton<IProtocolDecoder, ProtocolDecoder>();
             builder.Services.AddSingleton<IProtocolValidator, ProtocolValidator>();
             
