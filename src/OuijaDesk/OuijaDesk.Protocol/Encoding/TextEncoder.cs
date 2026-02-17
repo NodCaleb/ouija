@@ -13,8 +13,9 @@ public class TextEncoder : ITextEncoder
 
     /// <summary>
     /// Encodes a string containing digits and Cyrillic letters to byte array.
+    /// Spaces are ignored during encoding and are not represented in the output.
     /// </summary>
-    /// <param name="text">Input text (should contain only 0-9 and А-Я)</param>
+    /// <param name="text">Input text (may contain digits 0-9, Cyrillic letters А-Я and spaces)</param>
     /// <returns>Encoded byte array</returns>
     /// <exception cref="ArgumentException">Thrown when text contains unsupported characters</exception>
     public byte[] Encode(string? text)
@@ -22,30 +23,33 @@ public class TextEncoder : ITextEncoder
         if (string.IsNullOrEmpty(text))
             return Array.Empty<byte>();
 
-        var result = new byte[text.Length];
+        var bytes = new List<byte>(text.Length);
 
         for (int i = 0; i < text.Length; i++)
         {
             char c = char.ToUpper(text[i]);
 
+            // Skip space characters
+            if (c == ' ')
+                continue;
+
             // Handle digits 0-9 => 0x00-0x09
             if (c >= '0' && c <= '9')
             {
-                result[i] = (byte)(c - '0');
+                bytes.Add((byte)(c - '0'));
+                continue;
             }
+
             // Handle Cyrillic letters А-Я => 0x0A onwards
-            else
+            int index = CyrillicAlphabet.IndexOf(c);
+            if (index == -1)
             {
-                int index = CyrillicAlphabet.IndexOf(c);
-                if (index == -1)
-                {
-                    throw new ArgumentException($"Unsupported character '{c}' at position {i}. Only digits 0-9 and Cyrillic letters А-Я are supported.", nameof(text));
-                }
-                result[i] = (byte)(0x0A + index);
+                throw new ArgumentException($"Unsupported character '{c}' at position {i}. Only digits 0-9 and Cyrillic letters А-Я are supported.", nameof(text));
             }
+            bytes.Add((byte)(0x0A + index));
         }
 
-        return result;
+        return bytes.ToArray();
     }
 
     /// <summary>

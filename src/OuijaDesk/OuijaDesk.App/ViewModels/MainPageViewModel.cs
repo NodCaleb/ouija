@@ -52,11 +52,11 @@ public class MainPageViewModel : INotifyPropertyChanged
 				return;
 			}
 
-			// Filter to allow only numbers and Cyrillic letters, convert to uppercase
-			var filtered = new string(value
-				.Where(c => char.IsDigit(c) || (c >= 'А' && c <= 'я') || c == 'Ё' || c == 'ё')
-				.Select(c => char.ToUpper(c))
-				.ToArray());
+            // Filter to allow numbers, spaces and Cyrillic letters, convert to uppercase
+            var filtered = new string(value
+                .Where(c => char.IsDigit(c) || c == ' ' || (c >= 'А' && c <= 'я') || c == 'Ё' || c == 'ё')
+                .Select(c => char.ToUpper(c))
+                .ToArray());
 
 			SetProperty(ref _text, filtered);
 		}
