@@ -22,7 +22,7 @@ public class DeviceClientTests
         var client = new DeviceClient(encoder, transport, decoder, validator);
 
         // Act
-        var status = await client.CheckStatusAsync();
+        var status = await client.CheckStatusAsync(string.Empty);
 
         // Assert
         Assert.False(status.Online);
@@ -40,7 +40,7 @@ public class DeviceClientTests
         var client = new DeviceClient(encoder, transport, decoder, validator);
 
         // Act
-        var result = await client.SendAsync(new DeviceCommand { CommandType = 0x01 });
+        var result = await client.SendAsync(string.Empty, new DeviceCommand { CommandType = 0x01 });
 
         // Assert
         Assert.False(result.Success);
@@ -59,7 +59,7 @@ public class DeviceClientTests
         var client = new DeviceClient(encoder, transport, decoder, validator);
 
         // Act
-        var result = await client.SendAsync(new DeviceCommand { CommandType = 0x01 });
+        var result = await client.SendAsync(string.Empty, new DeviceCommand { CommandType = 0x01 });
 
         // Assert
         Assert.True(result.Success);
@@ -77,7 +77,7 @@ public class DeviceClientTests
         var client = new DeviceClient(encoder, transport, decoder, validator);
 
         // Act
-        var result = await client.SendAsync(new DeviceCommand { CommandType = 0x01 });
+        var result = await client.SendAsync(string.Empty, new DeviceCommand { CommandType = 0x01 });
 
         // Assert
         Assert.False(result.Success);

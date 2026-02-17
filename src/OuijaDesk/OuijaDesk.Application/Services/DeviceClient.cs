@@ -24,7 +24,7 @@ public class DeviceClient : IDeviceClient
         _validator = validator ?? throw new ArgumentNullException(nameof(validator));
     }
 
-    public async Task<DeviceStatusDto> CheckStatusAsync()
+    public async Task<DeviceStatusDto> CheckStatusAsync(string portName)
     {
         var command = new DeviceCommand
         {
@@ -39,7 +39,7 @@ public class DeviceClient : IDeviceClient
             // Transport requires a port name; callers/configuration should ensure transport knows which port to use.
             // Passing empty string here allows test/mocked transports to accept the call. Concrete transports
             // may throw an ArgumentException which we treat as device offline/unavailable.
-            responseBytes = await _transport.TransferAsync(string.Empty, payload).ConfigureAwait(false);
+            responseBytes = await _transport.TransferAsync(portName, payload).ConfigureAwait(false);
         }
         catch (Exception e)
         {
@@ -56,7 +56,7 @@ public class DeviceClient : IDeviceClient
         return new DeviceStatusDto { Online = isValid, Success = true };
     }
 
-    public async Task<TransferResultDto> SendAsync(DeviceCommand command)
+    public async Task<TransferResultDto> SendAsync(string portName, DeviceCommand command)
     {
         if (command == null)
             throw new ArgumentNullException(nameof(command));
@@ -74,7 +74,7 @@ public class DeviceClient : IDeviceClient
         byte[] responseBytes;
         try
         {
-            responseBytes = await _transport.TransferAsync(string.Empty, payload).ConfigureAwait(false);
+            responseBytes = await _transport.TransferAsync(portName, payload).ConfigureAwait(false);
         }
         catch (Exception ex)
         {

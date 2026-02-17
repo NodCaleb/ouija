@@ -5,7 +5,7 @@ namespace OuijaDesk.Application.Contracts;
 
 public interface IDeviceClient
 {
-    Task<DeviceStatusDto> CheckStatusAsync();
+    Task<DeviceStatusDto> CheckStatusAsync(string portName);
 
-    Task<TransferResultDto> SendAsync(DeviceCommand command);
+    Task<TransferResultDto> SendAsync(string portName, DeviceCommand command);
 }

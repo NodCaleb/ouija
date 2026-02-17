@@ -106,11 +106,18 @@ public class MainPageViewModel : INotifyPropertyChanged
 		await Task.CompletedTask;
 	}
 
-	private async Task CheckStatusAsync()
-	{
-		LastDeviceStatus = await _deviceClient.CheckStatusAsync();
-		var msg = LastDeviceStatus != null ? LastDeviceStatus!.Message : "Не удалось получить статус устройства";
-		AddStatusMessage(msg);
+    private async Task CheckStatusAsync()
+    {
+        if (SelectedPort == null)
+        {
+            AddStatusMessage("Порт не выбран. Проверьте подключение.");
+            return;
+        }
+
+        var portName = SelectedPort.PortName;
+        LastDeviceStatus = await _deviceClient.CheckStatusAsync(portName);
+        var msg = LastDeviceStatus != null ? LastDeviceStatus!.Message : "Не удалось получить статус устройства";
+        AddStatusMessage(msg);
     }
 
 	private async Task SendCommandAsync(string command)
@@ -149,8 +156,15 @@ public class MainPageViewModel : INotifyPropertyChanged
 			Message = Text
 		};
 
-		LastTransferResult = await _deviceClient.SendAsync(deviceCommand);
-		AddStatusMessage(LastTransferResult.Success ? "Команда успешно отправлена" : $"Ошибка отправки команды: {LastTransferResult.Message}");
+        if (SelectedPort == null)
+        {
+            AddStatusMessage("Порт не выбран. Команда не отправлена");
+            return;
+        }
+
+        var portName = SelectedPort.PortName;
+        LastTransferResult = await _deviceClient.SendAsync(portName, deviceCommand);
+        AddStatusMessage(LastTransferResult.Success ? "Команда успешно отправлена" : $"Ошибка отправки команды: {LastTransferResult.Message}");
 	}
 
 	protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
