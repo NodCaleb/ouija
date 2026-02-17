@@ -1,4 +1,4 @@
-﻿using OuijaDesk.Contracts.Models;
+﻿ using OuijaDesk.Contracts.Models;
 using OuijaDesk.Application.DTO;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
@@ -52,6 +52,21 @@ public class MainPageViewModel : INotifyPropertyChanged
 	{
 		// Ensure collection changes happen on the main thread for UI binding
 		MainThread.BeginInvokeOnMainThread(() => StatusMessages.Insert(0, message));
+	}
+
+	// Returns a Russian description for the given command type
+	private string GetCommandTypeDescription(byte commandType)
+	{
+		return commandType switch
+		{
+			0x00 => "Проверка статуса",
+			0x01 => "Воспроизведение один раз",
+			0x02 => "Повторное воспроизведение",
+			0x03 => "Остановка",
+			0x04 => "Да",
+			0x05 => "Нет",
+			_ => "Неизвестная команда"
+		};
 	}
 
 	public DeviceStatusDto? LastDeviceStatus
@@ -164,7 +179,7 @@ public class MainPageViewModel : INotifyPropertyChanged
 
         var portName = SelectedPort.PortName;
         LastTransferResult = await _deviceClient.SendAsync(portName, deviceCommand);
-        AddStatusMessage(LastTransferResult.Success ? "Команда успешно отправлена" : $"Ошибка отправки команды: {LastTransferResult.Message}");
+        AddStatusMessage(LastTransferResult.Success ? $"Команда \"{GetCommandTypeDescription(commandType)}\" успешно отправлена" : $"Ошибка отправки команды: {LastTransferResult.Message}");
 	}
 
 	protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

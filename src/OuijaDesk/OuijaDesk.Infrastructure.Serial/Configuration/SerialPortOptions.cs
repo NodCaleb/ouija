@@ -8,7 +8,7 @@ namespace OuijaDesk.Infrastructure.Serial.Configuration;
 /// </summary>
 internal static class SerialPortOptions
 {
-    public static int BaudRate { get; set; } = 9600;
+    public static int BaudRate { get; set; } = 115200;
     public static Parity Parity { get; set; } = Parity.None;
     public static int DataBits { get; set; } = 8;
     public static StopBits StopBits { get; set; } = StopBits.One;

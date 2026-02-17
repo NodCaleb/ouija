@@ -53,7 +53,7 @@ public class DeviceClient : IDeviceClient
 
         var isValid = _validator.Validate(response);
 
-        return new DeviceStatusDto { Online = isValid, Success = true };
+        return new DeviceStatusDto { Online = isValid, Success = true, Message = isValid ? "Устройство подключено" : "Некорректный отклик от устройства" };
     }
 
     public async Task<TransferResultDto> SendAsync(string portName, DeviceCommand command)
