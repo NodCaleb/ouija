@@ -6,6 +6,7 @@ using OuijaDesk.Application.Contracts;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Microsoft.Maui.ApplicationModel;
+using OuijaDesk.Protocol.Encoding;
 
 namespace OuijaDesk.App.ViewModels;
 
@@ -44,7 +45,22 @@ public class MainPageViewModel : INotifyPropertyChanged
 	public string Text
 	{
 		get => _text;
-		set => SetProperty(ref _text, value);
+		set
+		{
+			if (value == null)
+			{
+				SetProperty(ref _text, string.Empty);
+				return;
+			}
+
+			// Filter to allow only numbers and Cyrillic letters, convert to uppercase
+			var filtered = new string(value
+				.Where(c => char.IsDigit(c) || (c >= 'А' && c <= 'я') || c == 'Ё' || c == 'ё')
+				.Select(c => char.ToUpper(c))
+				.ToArray());
+
+			SetProperty(ref _text, filtered);
+		}
 	}
 
 	// Adds a new status message to the collection (newest first).
@@ -158,17 +174,31 @@ public class MainPageViewModel : INotifyPropertyChanged
 		}
 
 		if ((commandType == Protocol.Constants.CommandType.PlayOnce || 
-		     commandType == Protocol.Constants.CommandType.PlayRepeat) && 
-		    string.IsNullOrWhiteSpace(Text))
+			 commandType == Protocol.Constants.CommandType.PlayRepeat) && 
+			string.IsNullOrWhiteSpace(Text))
 		{
 			AddStatusMessage("Для команд воспроизведения необходимо указать текст");
 			return;
 		}
 
+		byte[]? messageBytes = null;
+		if (!string.IsNullOrWhiteSpace(Text))
+		{
+			try
+			{
+				messageBytes = TextEncoder.Encode(Text);
+			}
+			catch (ArgumentException ex)
+			{
+				AddStatusMessage($"Ошибка кодирования текста: {ex.Message}");
+				return;
+			}
+		}
+
 		var deviceCommand = new DeviceCommand
 		{
 			CommandType = commandType,
-			Message = Text
+			Message = messageBytes
 		};
 
         if (SelectedPort == null)

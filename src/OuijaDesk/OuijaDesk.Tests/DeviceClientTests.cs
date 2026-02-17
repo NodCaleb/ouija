@@ -40,11 +40,11 @@ public class DeviceClientTests
         var client = new DeviceClient(encoder, transport, decoder, validator);
 
         // Act
-        var result = await client.SendAsync(string.Empty, new DeviceCommand { CommandType = 0x01 });
+        var result = await client.SendAsync(string.Empty, new DeviceCommand { CommandType = 0x01, Message = null });
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Encoding failed", result.Message);
+        Assert.Contains("кодирования", result.Message);
     }
 
     [Fact]
@@ -59,7 +59,7 @@ public class DeviceClientTests
         var client = new DeviceClient(encoder, transport, decoder, validator);
 
         // Act
-        var result = await client.SendAsync(string.Empty, new DeviceCommand { CommandType = 0x01 });
+        var result = await client.SendAsync(string.Empty, new DeviceCommand { CommandType = 0x01, Message = null });
 
         // Assert
         Assert.True(result.Success);
@@ -77,11 +77,11 @@ public class DeviceClientTests
         var client = new DeviceClient(encoder, transport, decoder, validator);
 
         // Act
-        var result = await client.SendAsync(string.Empty, new DeviceCommand { CommandType = 0x01 });
+        var result = await client.SendAsync(string.Empty, new DeviceCommand { CommandType = 0x01, Message = null });
 
         // Assert
         Assert.False(result.Success);
-        Assert.Contains("Invalid response status", result.Message);
+        Assert.Contains("статус ответа", result.Message);
     }
 
     // --- Stubs ---

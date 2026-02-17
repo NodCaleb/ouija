@@ -11,8 +11,8 @@ public sealed class ProtocolEncoder : IProtocolEncoder
     private readonly IChecksumCalculator _checksumCalculator;
 
     // Assumptions:
-    // - DeviceCommand has: byte CommandType, string? Message
-    // - Message is encoded as UTF-8 bytes
+    // - DeviceCommand has: byte CommandType, byte[]? Message
+    // - Message is a pre-encoded byte array
     // - Payload length is 0..255 (1-byte length field)
     // - Checksum is XOR of all bytes except the checksum byte itself
 
@@ -27,12 +27,7 @@ public sealed class ProtocolEncoder : IProtocolEncoder
             throw new ArgumentNullException(nameof(command));
 
         // Null message => empty payload
-        var message = command.Message ?? string.Empty;
-
-        // Encode message to bytes (strict, deterministic)
-        // Note: if you later need a fixed terminator (e.g., '\0') or fixed-length padding,
-        // that belongs here, by protocol definition.
-        var payload = System.Text.Encoding.ASCII.GetBytes(message.ToUpper());
+        var payload = command.Message ?? Array.Empty<byte>();
 
         if (payload.Length > ProtocolConstants.MaxPayloadLength)
             throw new ProtocolException(

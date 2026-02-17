@@ -188,16 +188,16 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
     sequenceIndex = -1;
     uart_putchar(RESPONSE_OK);
   } else if (command == CMD_DISPLAY_YES) {
-    // Display YES: single-byte sequence with value 0x00
+    // Display YES: single-byte sequence with value 0x46
     sequencePayloadLength = 1;
-    sequencePayload[0] = 0x00;
+    sequencePayload[0] = 0x46;
     repeatPlay = 0;
     sequenceIndex = 0;
     uart_putchar(RESPONSE_OK);
   } else if (command == CMD_DISPLAY_NO) {
-    // Display NO: single-byte sequence with value 0x01
+    // Display NO: single-byte sequence with value 0x47
     sequencePayloadLength = 1;
-    sequencePayload[0] = 0x01;
+    sequencePayload[0] = 0x47;
     repeatPlay = 0;
     sequenceIndex = 0;
     uart_putchar(RESPONSE_OK);
