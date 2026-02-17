@@ -14,7 +14,6 @@ volatile uint8_t rxTail = 0;
 #define APP_BUF_SIZE RX_BUF_SIZE
 static uint8_t appBuf[APP_BUF_SIZE];
 static uint8_t appLen = 0;
-static bool appTerminated = false; // set when newline/CR received
 static unsigned long lastRxMillis = 0;
 static const unsigned long RX_IDLE_TIMEOUT_MS = 50; // flush after 50ms idle
 
@@ -65,35 +64,24 @@ void loop() {
     uint8_t b = rx_read();
     lastRxMillis = millis();
 
-    // Treat CR or LF as terminator (do not include in stored bytes)
-    if (b == '\r' || b == '\n') {
-      appTerminated = true;
+    // Store all bytes equally (no special treatment for CR/LF)
+    if (appLen < APP_BUF_SIZE) {
+      appBuf[appLen++] = b;
     } else {
-      if (appLen < APP_BUF_SIZE) {
-        appBuf[appLen++] = b;
-      } else {
-        // buffer full: set terminator so we flush immediately
-        appTerminated = true;
-      }
+      // buffer full: drop new bytes until flush (will flush below)
     }
   }
 
-  // Flush conditions: explicit terminator, buffer full, or idle timeout
-  if (appLen > 0 && (appTerminated || (millis() - lastRxMillis >= RX_IDLE_TIMEOUT_MS))) {
+  // Flush conditions: buffer full or idle timeout
+  if (appLen > 0 && (appLen >= APP_BUF_SIZE || (millis() - lastRxMillis >= RX_IDLE_TIMEOUT_MS))) {
     // Send stored bytes in reverse order
     int n = (int)appLen;
     for (int i = n - 1; i >= 0; --i) {
       uart_putchar(appBuf[i]);
     }
 
-    // If input ended with newline/CR, send a newline after reversed data
-    if (appTerminated) {
-      uart_putchar('\n');
-    }
-
     // Reset buffer state
     appLen = 0;
-    appTerminated = false;
   }
   // Do other work here; no Serial dependency
 }

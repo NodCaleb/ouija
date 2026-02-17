@@ -59,6 +59,11 @@ volatile uint8_t  rxBuffer[RX_BUFFER_SIZE];
 volatile uint8_t  rxIndex          = 0;
 volatile uint8_t  rxExpectedLength = 0; // Total frame length once known (0 = unknown)
 
+// ISR-driven receive ring buffer (ISR only writes head; main loop reads tail)
+volatile uint8_t rxRing[RX_BUFFER_SIZE];
+volatile uint8_t rxRingHead = 0;
+volatile uint8_t rxRingTail = 0;
+
 // ---------------- Sequence storage ----------------
 
 static const uint8_t SEQUENCE_BUFFER_SIZE = 64;
@@ -204,61 +209,20 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
 // ---------------- Interrupt Service Routines ----------------
 
 #if defined(UDR0)
-// UART RX complete interrupt (ATmega-style UART; used on many Arduino boards)
+// Minimal ISR: push received byte into ring buffer, keep ISR tiny.
 ISR(USART_RX_vect)
 {
   uint8_t byteReceived = UDR0;
 
-  // Simple state machine driven by rxIndex and rxExpectedLength.
-  if (rxIndex == 0) {
-    // Expect first magic byte
-    if (byteReceived != PROTOCOL_MAGIC_0) {
-      // Stay at index 0 until we see the first magic byte
-      return;
-    }
-    rxBuffer[rxIndex++] = byteReceived;
-    rxExpectedLength = 0;
-    return;
-  }
+  uint8_t next = (uint8_t)(rxRingHead + 1);
+  if (next >= RX_BUFFER_SIZE) next = 0;
 
-  if (rxIndex == 1) {
-    // Expect second magic byte
-    if (byteReceived != PROTOCOL_MAGIC_1) {
-      // If this byte happens to be the first magic byte, start over from there
-      rxIndex = 0;
-      if (byteReceived == PROTOCOL_MAGIC_0) {
-        rxBuffer[rxIndex++] = byteReceived;
-      }
-      return;
-    }
-    rxBuffer[rxIndex++] = byteReceived;
-    return;
+  // If buffer not full, store byte
+  if (next != rxRingTail) {
+    rxRing[rxRingHead] = byteReceived;
+    rxRingHead = next;
   }
-
-  // Store subsequent bytes as long as we have buffer space
-  if (rxIndex < RX_BUFFER_SIZE) {
-    rxBuffer[rxIndex++] = byteReceived;
-  } else {
-    // Buffer overflow – reset state
-    rxIndex = 0;
-    rxExpectedLength = 0;
-    return;
-  }
-
-  // Once we have received the payload length byte (index 4), we can calculate total frame length.
-  if (rxIndex == 5) {
-    uint8_t payloadLen = rxBuffer[4];
-    rxExpectedLength = (uint8_t)(6 + payloadLen); // full frame size
-  }
-
-  // If we know the expected frame length and have received that many bytes, process the frame.
-  if (rxExpectedLength != 0 && rxIndex >= rxExpectedLength) {
-    processValidFrame((const uint8_t *)rxBuffer, rxExpectedLength);
-
-    // Reset for the next frame
-    rxIndex          = 0;
-    rxExpectedLength = 0;
-  }
+  // else drop byte on overflow
 }
 #endif
 
@@ -368,6 +332,63 @@ void loop()
     }
   }
 
-  // Main loop can remain mostly idle; all protocol work is done in the UART ISR.
+  // Drain the ISR ring buffer and assemble frames in main context.
+  while (rxRingTail != rxRingHead) {
+    uint8_t b = rxRing[rxRingTail];
+    rxRingTail = (uint8_t)(rxRingTail + 1);
+    if (rxRingTail >= RX_BUFFER_SIZE) rxRingTail = 0;
+
+    // State machine for frame assembly (previously executed in ISR)
+    if (rxIndex == 0) {
+      if (b != PROTOCOL_MAGIC_0) {
+        continue; // wait for first magic byte
+      }
+      rxBuffer[rxIndex++] = b;
+      rxExpectedLength = 0;
+      continue;
+    }
+
+    if (rxIndex == 1) {
+      if (b != PROTOCOL_MAGIC_1) {
+        // if this byte is a first magic byte, start over from there
+        rxIndex = 0;
+        if (b == PROTOCOL_MAGIC_0) {
+          rxBuffer[rxIndex++] = b;
+        }
+        continue;
+      }
+      rxBuffer[rxIndex++] = b;
+      continue;
+    }
+
+    if (rxIndex < RX_BUFFER_SIZE) {
+      rxBuffer[rxIndex++] = b;
+    } else {
+      // overflow, reset
+      rxIndex = 0;
+      rxExpectedLength = 0;
+      continue;
+    }
+
+    if (rxIndex == 5) {
+      uint8_t payloadLen = rxBuffer[4];
+      rxExpectedLength = (uint8_t)(6 + payloadLen);
+    }
+
+    if (rxExpectedLength != 0 && rxIndex >= rxExpectedLength) {
+      // We have a full frame — process it
+      uint8_t len = rxExpectedLength;
+      uint8_t localFrame[RX_BUFFER_SIZE];
+      for (uint8_t i = 0; i < len && i < RX_BUFFER_SIZE; ++i) {
+        localFrame[i] = rxBuffer[i];
+      }
+      // reset state
+      rxIndex = 0;
+      rxExpectedLength = 0;
+
+      // handle frame in main context
+      processValidFrame(localFrame, len);
+    }
+  }
 }
 
