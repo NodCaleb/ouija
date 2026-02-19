@@ -190,14 +190,14 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
   } else if (command == CMD_DISPLAY_YES) {
     // Display YES: single-byte sequence with value 0x46
     sequencePayloadLength = 1;
-    sequencePayload[0] = 0x46;
+    sequencePayload[0] = 0x2B;
     repeatPlay = 0;
     sequenceIndex = 0;
     uart_putchar(RESPONSE_OK);
   } else if (command == CMD_DISPLAY_NO) {
     // Display NO: single-byte sequence with value 0x47
     sequencePayloadLength = 1;
-    sequencePayload[0] = 0x47;
+    sequencePayload[0] = 0x2C;
     repeatPlay = 0;
     sequenceIndex = 0;
     uart_putchar(RESPONSE_OK);
@@ -343,6 +343,9 @@ void loop()
           sequenceIndex = -1; // Stop playback
         }
       }
+    }
+    else{
+      sendToShiftRegisters(0ULL);
     }
   }
 }
