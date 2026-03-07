@@ -32,7 +32,6 @@ static const uint8_t CMD_DISPLAY_YES          = 0x04;
 static const uint8_t CMD_DISPLAY_NO           = 0x05;
 
 // Response codes:
-// Response codes:
 // 0x00 = success
 // 0x01 = invalid checksum
 // 0x02 = unknown command
@@ -69,7 +68,7 @@ volatile uint8_t rxTail = 0;
 static uint8_t appBuf[APP_BUF_SIZE];
 static uint8_t appLen = 0;
 static unsigned long lastRxMillis = 0;
-static const unsigned long RX_IDLE_TIMEOUT_MS = 50; // flush after 50ms idle
+static const unsigned long RX_IDLE_TIMEOUT_MS = 1000; // fail-safe flush for stale partial frames
 
 
 // ---------------- Sequence storage ----------------
@@ -217,16 +216,31 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
 // ---------------- Initialization helpers ----------------
 
 void uart_init(uint32_t baud) {
-  uint16_t ubrr = (F_CPU / 4 / baud - 1) / 2; // Using double speed (U2X0)
+  // LGT8F328 boards are often more stable at normal UART speed mode.
+  // Keep double-speed on classic AVR by default.
+#if defined(__LGT8F__) || defined(ARDUINO_AVR_LGT8F328P) || defined(ARDUINO_AVR_LGT8F328D)
+  uint16_t ubrr = (uint16_t)(((F_CPU + (8UL * baud)) / (16UL * baud)) - 1UL);
+  UCSR0A = 0;
+#else
+  uint16_t ubrr = (uint16_t)(((F_CPU + (4UL * baud)) / (8UL * baud)) - 1UL);
+  UCSR0A = (1 << U2X0);            // double speed
+#endif
+
   UBRR0H = (ubrr >> 8) & 0xFF;
   UBRR0L = ubrr & 0xFF;
-  UCSR0A = (1 << U2X0);            // double speed
   UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0); // RX/TX enable + RX interrupt
   UCSR0C = (1 << UCSZ01) | (1 << UCSZ00); // 8N1
 }
 
 ISR(USART_RX_vect) {
+  uint8_t status = UCSR0A;
   uint8_t b = UDR0; // read received byte
+
+  // Ignore bytes with UART framing/parity/overrun errors.
+  if (status & ((1 << FE0) | (1 << DOR0) | (1 << UPE0))) {
+    return;
+  }
+
   uint8_t next = (rxHead + 1) & (RX_BUF_SIZE - 1); // RX_BUF_SIZE must be power of two
   if (next != rxTail) {
     rxBuf[rxHead] = b;
@@ -319,12 +333,36 @@ void loop()
     }
   }
 
-  // Flush conditions: buffer full or idle timeout
-  if (appLen > 0 && (appLen >= APP_BUF_SIZE || (millis() - lastRxMillis >= RX_IDLE_TIMEOUT_MS))) {
-    // Process frame
-    processValidFrame(appBuf, appLen);
+  // Parse complete frames based on payload length to avoid premature flushes.
+  while (appLen >= 6) {
+    uint8_t payloadLen = appBuf[4];
+    uint16_t frameLen = (uint16_t)payloadLen + 6U;
 
-    // Reset buffer state
+    // Invalid length declaration for our local buffer.
+    if (frameLen > APP_BUF_SIZE) {
+      uart_putchar(RESPONSE_INCORRECT_PAYLOAD_LENGTH);
+      appLen = 0;
+      break;
+    }
+
+    // Wait for the rest of the frame.
+    if (appLen < frameLen) {
+      break;
+    }
+
+    // Process exactly one frame, keep remaining bytes for next iteration.
+    processValidFrame(appBuf, (uint8_t)frameLen);
+
+    uint8_t remaining = (uint8_t)(appLen - frameLen);
+    if (remaining > 0) {
+      memmove(appBuf, appBuf + frameLen, remaining);
+    }
+    appLen = remaining;
+  }
+
+  // Fail-safe flush: if stale partial data remains for too long, report and clear it.
+  if (appLen > 0 && (millis() - lastRxMillis >= RX_IDLE_TIMEOUT_MS)) {
+    processValidFrame(appBuf, appLen);
     appLen = 0;
   }
 
