@@ -123,6 +123,23 @@ The device must reject frames if any of the following occur:
 
 Rejected frames must not trigger any device action.
 
+## Response Codes
+
+When the device rejects a frame or acknowledges a command it replies with a single-byte response code. The meanings below match the firmware implementation and are returned immediately (single byte) on the serial/transport.
+
+- `0x00` — RESPONSE_OK: Success / command accepted and executed.
+- `0x01` — RESPONSE_INVALID_CHECKSUM: The computed XOR checksum does not match the checksum byte; the frame is discarded.
+- `0x02` — RESPONSE_UNKNOWN_COMMAND: Command identifier is not recognized by the device.
+- `0x03` — RESPONSE_INVALID_VERSION: Protocol `Version` byte is not supported by the device.
+- `0x04` — RESPONSE_INVALID_MESSAGE: Generic/legacy invalid message indicator (kept for compatibility).
+- `0x05` — RESPONSE_INCORRECT_MESSAGE_LENGTH: The overall message is too short to be valid (missing required fields).
+- `0x06` — RESPONSE_INVALID_HEADER: The sync/magic bytes are incorrect (not `0xAA 0x55`).
+- `0x07` — RESPONSE_INCORRECT_PAYLOAD_LENGTH: The `Payload Length` field does not match the actual message size (total length mismatch).
+
+Notes:
+- The device sends these single-byte codes to make it easier for host-side software to take corrective action (resend, resynchronize, or report an error).
+- Hosts should treat any non-`0x00` response as a failure and can use the specific code to decide retry or recovery strategy.
+
 ---
 
 ## Design Notes

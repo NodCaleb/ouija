@@ -32,16 +32,23 @@ static const uint8_t CMD_DISPLAY_YES          = 0x04;
 static const uint8_t CMD_DISPLAY_NO           = 0x05;
 
 // Response codes:
+// Response codes:
 // 0x00 = success
-// 0x01 = invalid message
-// 0x02 = invalid checksum
-// 0x03 = unknown command
-// 0x04 = invalid version 
-static const uint8_t RESPONSE_OK                  = 0x00;
-static const uint8_t RESPONSE_INVALID_MESSAGE     = 0x01;
-static const uint8_t RESPONSE_INVALID_CHECKSUM    = 0x02;
-static const uint8_t RESPONSE_UNKNOWN_COMMAND     = 0x03;
-static const uint8_t RESPONSE_INVALID_VERSION     = 0x04;
+// 0x01 = invalid checksum
+// 0x02 = unknown command
+// 0x03 = invalid version
+// 0x04 = invalid/generic message (kept for compatibility)
+// 0x05 = incorrect overall message length (too short)
+// 0x06 = invalid protocol header (magic bytes)
+// 0x07 = incorrect payload/total length (payload length mismatch)
+static const uint8_t RESPONSE_OK                          = 0x00;
+static const uint8_t RESPONSE_INVALID_CHECKSUM           = 0x01;
+static const uint8_t RESPONSE_UNKNOWN_COMMAND            = 0x02;
+static const uint8_t RESPONSE_INVALID_VERSION            = 0x03;
+static const uint8_t RESPONSE_INVALID_MESSAGE            = 0x04;
+static const uint8_t RESPONSE_INCORRECT_MESSAGE_LENGTH   = 0x05;
+static const uint8_t RESPONSE_INVALID_HEADER             = 0x06;
+static const uint8_t RESPONSE_INCORRECT_PAYLOAD_LENGTH   = 0x07;
 
 // ---------------- Shift Register configuration ----------------
 
@@ -128,13 +135,13 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
   // [5+L] = checksum
 
   if (length < 6) {
-    uart_putchar(RESPONSE_INVALID_MESSAGE); 
+    uart_putchar(RESPONSE_INCORRECT_MESSAGE_LENGTH);
     return; // too short to be valid
   }
 
   // Validate magic bytes
   if (frame[0] != PROTOCOL_MAGIC_0 || frame[1] != PROTOCOL_MAGIC_1) {
-    uart_putchar(RESPONSE_INVALID_MESSAGE); 
+    uart_putchar(RESPONSE_INVALID_HEADER);
     return; // invalid magic, discard
   }
 
@@ -144,7 +151,7 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
   uint8_t expectedSize = (uint8_t)(6 + payloadLen); // 2 magic + 1 ver + 1 cmd + 1 len + L + 1 checksum
 
   if (length != expectedSize) {
-    uart_putchar(RESPONSE_INVALID_MESSAGE);
+    uart_putchar(RESPONSE_INCORRECT_PAYLOAD_LENGTH);
     return; // length mismatch, discard
   }
 
