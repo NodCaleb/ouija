@@ -9,7 +9,7 @@ namespace OuijaDesk.Protocol.Encoding;
 /// </summary>
 public class TextEncoder : ITextEncoder
 {
-    private const string CyrillicAlphabet = "АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
+    private const string CyrillicAlphabet = "АБВГДЕЁЖЗИКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯ";
 
     /// <summary>
     /// Encodes a string containing digits and Cyrillic letters to byte array.
@@ -39,6 +39,8 @@ public class TextEncoder : ITextEncoder
                 bytes.Add((byte)(c - '0'));
                 continue;
             }
+
+            if (c == 'Й') c = 'И'; // Map Й to И for encoding, as I forget to add Й LED to the board :/
 
             // Handle Cyrillic letters А-Я => 0x0A onwards
             int index = CyrillicAlphabet.IndexOf(c);
