@@ -78,10 +78,17 @@ static uint8_t sequencePayload[SEQUENCE_BUFFER_SIZE];
 static uint8_t sequencePayloadLength = 0;
 static uint8_t repeatPlay = 0; // 0 = play once, 1 = repeat
 static int8_t sequenceIndex = -1; // -1 = not playing, >= 0 = current position
+static uint8_t sequenceOffPhase = 0; // 0 = send payload value, 1 = send 0ULL between values
 
 // ---------------- Timer state ----------------
 
-volatile bool oneSecondElapsed = false;
+// Timer tick period in milliseconds.
+// Set this value to change how often `TIMER1_COMPA_vect` fires.
+// With Timer1 prescaler = 1024 on 16 MHz AVR, keep it roughly in 1..4000 ms
+// so OCR1A stays within 16-bit range.
+static const uint16_t TIMER_TICK_PERIOD_MS = 1000;
+
+volatile bool timerTickElapsed = false;
 
 // ---------------- Utility functions ----------------
 
@@ -188,24 +195,28 @@ static void processValidFrame(const uint8_t *frame, uint8_t length)
     repeatPlay = (command == CMD_PLAY_SEQUENCE_REPEAT) ? 1 : 0;
     // Start playback from beginning
     sequenceIndex = 0;
+    sequenceOffPhase = 0;
     uart_putchar(RESPONSE_OK);
   } else if (command == CMD_STOP_PLAYING) {
     // Stop any active sequence playback
     sequenceIndex = -1;
+    sequenceOffPhase = 0;
     uart_putchar(RESPONSE_OK);
   } else if (command == CMD_DISPLAY_YES) {
-    // Display YES: single-byte sequence with value 0x2B (43)
+    // Display YES: single-byte sequence with value 0x2A (42)
+    sequencePayloadLength = 1;
+    sequencePayload[0] = 0x2A;
+    repeatPlay = 0;
+    sequenceIndex = 0;
+    sequenceOffPhase = 0;
+    uart_putchar(RESPONSE_OK);
+  } else if (command == CMD_DISPLAY_NO) {
+    // Display NO: single-byte sequence with value 0x2B (43)
     sequencePayloadLength = 1;
     sequencePayload[0] = 0x2B;
     repeatPlay = 0;
     sequenceIndex = 0;
-    uart_putchar(RESPONSE_OK);
-  } else if (command == CMD_DISPLAY_NO) {
-    // Display NO: single-byte sequence with value 0x2C (44)
-    sequencePayloadLength = 1;
-    sequencePayload[0] = 0x2C;
-    repeatPlay = 0;
-    sequenceIndex = 0;
+    sequenceOffPhase = 0;
     uart_putchar(RESPONSE_OK);
   } else {
     // Unknown/unsupported command
@@ -252,7 +263,7 @@ ISR(USART_RX_vect) {
 // Timer1 Compare Match A interrupt: fires at 1 Hz when Timer1 configured by initTimer1ForOneSecondInterrupt()
 ISR(TIMER1_COMPA_vect)
 {
-  oneSecondElapsed = true;
+  timerTickElapsed = true;
 }
 bool rx_available() {
   return rxHead != rxTail;
@@ -266,10 +277,9 @@ uint8_t rx_read() {
 
 static void initTimer1ForOneSecondInterrupt()
 {
-  // Configure Timer1 in CTC mode with 1 Hz period.
-  // Assumes 16 MHz clock.
-  // 16,000,000 / 1024 = 15625 ticks per second
-  // We want interrupt at 1 Hz -> OCR1A = 15625 - 1 = 15624
+  // Configure Timer1 in CTC mode with period defined by TIMER_TICK_PERIOD_MS.
+  // OCR1A formula: ((F_CPU / prescaler) * period_ms / 1000) - 1
+  // prescaler is fixed to 1024 below.
 
   noInterrupts();
 
@@ -280,8 +290,8 @@ static void initTimer1ForOneSecondInterrupt()
   // CTC mode
   TCCR1B |= (1 << WGM12);
 
-  // Set compare value for 1 second period
-  OCR1A = 15624;
+  // Set compare value for configured period
+  OCR1A = (uint16_t)((((uint32_t)F_CPU / 1024UL) * TIMER_TICK_PERIOD_MS) / 1000UL - 1UL);
 
   // Enable Timer1 compare interrupt A
   TIMSK1 |= (1 << OCIE1A);
@@ -367,25 +377,32 @@ void loop()
   }
 
   // Handle 1-second timer: toggle LED
-  if (oneSecondElapsed) {
-    oneSecondElapsed = false;
+  if (timerTickElapsed) {
+    timerTickElapsed = false;
     digitalWrite(LED_BUILTIN, !digitalRead(LED_BUILTIN));
     
     // Process sequence playback if active
     if (sequenceIndex > -1) {
-      // Send current sequence byte to shift registers
-      uint64_t bitMask = mapValueToBitMask(sequencePayload[sequenceIndex]);
-      sendToShiftRegisters(bitMask);
-      
-      // Move to next position
-      sequenceIndex++;
-      
-      // Check if we reached the end
-      if (sequenceIndex >= sequencePayloadLength) {
-        if (repeatPlay == 1) {
-          sequenceIndex = 0; // Loop back to start
-        } else {
-          sequenceIndex = -1; // Stop playback
+      if (sequenceOffPhase == 0) {
+        // Send current sequence value.
+        uint64_t bitMask = mapValueToBitMask(sequencePayload[sequenceIndex]);
+        sendToShiftRegisters(bitMask);
+        sequenceOffPhase = 1;
+      } else {
+        // Send OFF state between sequence values.
+        sendToShiftRegisters(0ULL);
+        sequenceOffPhase = 0;
+
+        // Move to next position after OFF gap.
+        sequenceIndex++;
+
+        // Check if we reached the end.
+        if (sequenceIndex >= sequencePayloadLength) {
+          if (repeatPlay == 1) {
+            sequenceIndex = 0; // Loop back to start
+          } else {
+            sequenceIndex = -1; // Stop playback
+          }
         }
       }
     }
